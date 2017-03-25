@@ -259,10 +259,10 @@ class AudioStream:
     Cast the SDR as a float for the TP
     """
     ys = self.fft(self.audio, self.highpass, self.lowpass)
-    fs = numpy.sort(ys.argsort()[-self.numInput:])         # ysを昇順にソートして結果の上位から入力数だけのインデックス
-    ufs = fs.astype(numpy.float32) / (self.lowpass - self.highpass) * self.numCols #fsをフロートに変換して、バンド幅で割り、カラム数で割る。
+    fs = numpy.sort(ys.argsort()[-self.numInput:])
+    ufs = fs.astype(numpy.float32) / (self.lowpass - self.highpass) * self.numCols
     ufs = ufs.astype(numpy.int32)
-    ufs = numpy.unique(ufs)  #重複をなくす
+    ufs = numpy.unique(ufs)
 
     actual = numpy.zeros(self.numCols,dtype=numpy.int32)
 
