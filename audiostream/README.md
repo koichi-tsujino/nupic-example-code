@@ -5,9 +5,11 @@ and outputs an anomaly score, based on how familiar the TP has become to that
 particular mic input sequence. Think of it as being able to recognize a song,
 or become more familiar with your speech pattern.
 
+This is forked from htm-community/nupic-example-code. 
+
 ## Requirements
 
-- Mac OS X
+- Ubuntu  Ubuntu 16.04.2 LTS
 - [matplotlib](http://matplotlib.org/)
 - [pyaudio](http://people.csail.mit.edu/hubert/pyaudio/)
 
