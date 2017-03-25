@@ -1,3 +1,8 @@
+
+# coding: utf-8
+
+# In[ ]:
+
 #!/usr/bin/env python
 # ----------------------------------------------------------------------
 # Numenta Platform for Intelligent Computing (NuPIC)
@@ -33,18 +38,19 @@ TP10X2 - the C++ optimized temporal pooler (TP)
 import numpy
 import pyaudio
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+
 from nupic.encoders.sparse_pass_through_encoder import SparsePassThroughEncoder
 from nupic.research.TP10X2 import TP10X2 as TP
-
-
+#from nupic.research.TP import TP
 
 class Visualizations:
-    
+
   def calcAnomaly(self, actual, predicted):
     """
     Calculates the anomaly of two SDRs
-    
-    Uses the equation presented on the wiki: 
+
+    Uses the equation presented on the wiki:
     https://github.com/numenta/nupic/wiki/Anomaly-Score-Memo
 
     To put this in terms of the temporal pooler:
@@ -66,12 +72,11 @@ class Visualizations:
     delta_score = sum(delta)
     actual_score = float(sum(actual))
     return delta_score / actual_score
-  
-  
+
   def compareArray(self, actual, predicted):
     """
     Produce an array that compares the actual & predicted
-    
+
     'A' - actual
     'P' - predicted
     'E' - expected (both actual & predicted
@@ -107,10 +112,10 @@ class AudioStream:
 
   def __init__(self):
     """
-    Instantiate temporal pooler, encoder, audio sampler, filter, & freq plot
+    Instantiate temporal pooler, encoder, audio sampler, filter, & freq Wplot
     """
     self.vis = Visualizations()
-    
+
     """
     The number of columns in the input and therefore the TP
      2**9 = 512
@@ -123,7 +128,7 @@ class AudioStream:
 
     """
     Create a bit map encoder
-    
+
     From the encoder's __init__ method:
      1st arg: the total bits in input
      2nd arg: the number of bits used to encode each input bit
@@ -141,7 +146,7 @@ class AudioStream:
     secToRecord=.1
     self.buffersize=2**12
     self.buffersToRecord=int(rate*secToRecord/self.buffersize)
-    if not self.buffersToRecord: 
+    if not self.buffersToRecord:
       self.buffersToRecord=1
 
     """
@@ -176,12 +181,13 @@ class AudioStream:
       globalDecay=0.02, burnIn=2,
       checkSynapseConsistency=False,
       pamLength=100)
-  
+
     """
     Creating the audio stream from our mic
     """
     p = pyaudio.PyAudio()
-    self.inStream = p.open(format=pyaudio.paInt32,channels=1,rate=rate,input=True,frames_per_buffer=self.buffersize)
+    #input_device_index should be selected according to the configuration of target system
+    self.inStream = p.open(format=pyaudio.paInt32,channels=1,rate=rate,input=True,input_device_index=4,frames_per_buffer=self.buffersize)
 
     """
     Setting up the array that will handle the timeseries of audio data from our input
@@ -206,24 +212,33 @@ class AudioStream:
     """
     plt.ion()
     bin = range(self.highpass,self.lowpass)
+
+    self.gs = gridspec.GridSpec(1, 2,width_ratios=[10,1])
+
+    #plot power spectrum
+    #plt.subplot(121)
     xs = numpy.arange(len(bin))*rate/self.buffersize + highHertz
     self.freqPlot = plt.plot(xs,xs)[0]
     plt.ylim(0, 10**12)
-    
+
+    #Plot anomaly score
+    plt.subplot(self.gs[1])
+    plt.bar(1,1)
+
     while True:
-      self.processAudio()
-  
-  
-  def processAudio (self): 
+        self.processAudio()
+
+
+  def processAudio (self):
     """
     Sample audio, encode, send it to the TP
-    
+
     Pulls the audio from the mic
     Conditions that audio as an SDR
     Computes a prediction via the TP
     Update the visualizations
     """
-    
+
     """
     Cycle through the multiples of the buffers we're sampling
     Sample audio to store for each frame in buffersize
@@ -237,7 +252,7 @@ class AudioStream:
         print "Overflow error from 'audiostring = inStream.read(buffersize)'. Try decreasing buffersize."
         quit()
       self.audio[i*self.buffersize:(i + 1)*self.buffersize] = numpy.fromstring(audioString,dtype = "uint32")
-    
+
     """
     Get int array of strength for each bin of frequencies via fast fourier transform
     Get the indices of the strongest frequencies (the top 'numInput')
@@ -247,29 +262,53 @@ class AudioStream:
     Cast the SDR as a float for the TP
     """
     ys = self.fft(self.audio, self.highpass, self.lowpass)
-    fs = numpy.sort(ys.argsort()[-self.numInput:])
-    rfs = fs.astype(numpy.float32) / (self.lowpass - self.highpass) * self.numCols
-    ufs = numpy.unique(rfs)
-    actualInt = self.e.encode(ufs)
-    actual = actualInt.astype(numpy.float32)
-    
+    fs = numpy.sort(ys.argsort()[-self.numInput:])         # ysを昇順にソートして結果の上位から入力数だけのインデックス
+    ufs = fs.astype(numpy.float32) / (self.lowpass - self.highpass) * self.numCols #fsをフロートに変換して、バンド幅で割り、カラム数で割る。
+    ufs = ufs.astype(numpy.int32)
+    ufs = numpy.unique(ufs)  #重複をなくす
+
+    actual = numpy.zeros(self.numCols,dtype=numpy.int32)
+
+    for index in ufs:
+        actual += self.e.encode(index)
+
+    actualInt = actual
+
     """
     Pass the SDR to the TP
     Collect the prediction SDR from the TP
     Pass the prediction & actual SDRS to the anomaly calculator & array comparer
     Update the frequency plot
     """
+
     self.tp.compute(actual, enableLearn = True, computeInfOutput = True)
     predictedInt = self.tp.getPredictedState().max(axis=1)
     compare = self.vis.compareArray(actualInt, predictedInt)
     anomaly = self.vis.calcAnomaly(actualInt, predictedInt)
+
+
     print "." . join(compare)
     print self.vis.hashtagAnomaly(anomaly)
+
+    #dipslay poer spectrum
+    plt.subplot(self.gs[0])
     self.freqPlot.set_ydata(ys)
+    plt.title("Power spectrum")
     plt.show(block = False)
     plt.draw()
-  
-  
+
+    #display anomaly score
+    plt.subplot(self.gs[1])
+    plt.cla()
+    plt.bar(1,anomaly,width=0.1, color='g')
+    plt.ylim(0,1)
+    plt.title("Anomaly")
+    plt.tick_params(bottom='off', labelbottom='off')
+    plt.draw()
+
+    plt.tight_layout()
+    plt.pause(0.0001)
+
   def fft(self, audio, highpass, lowpass):
     """
     Fast fourier transform conditioning
@@ -278,7 +317,7 @@ class AudioStream:
     'output' contains the strength of each frequency in the audio signal
     frequencies are marked by its position in 'output':
     frequency = index * rate / buffesize
-    output.size = buffersize/2 
+    output.size = buffersize/2
     Method:
     Use numpy's FFT (numpy.fft.fft)
     Find the magnitude of the complex numbers returned (abs value)
@@ -290,8 +329,12 @@ class AudioStream:
     """
     left,right = numpy.split(numpy.abs(numpy.fft.fft(audio)),2)
     output = left[highpass:lowpass]
-    return output 
+    return output
 
 
 
 audiostream = AudioStream()
+
+
+
+
