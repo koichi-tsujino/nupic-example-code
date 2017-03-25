@@ -13,9 +13,12 @@ This is forked from htm-community/nupic-example-code.
 - [matplotlib](http://matplotlib.org/)
 - [pyaudio](http://people.csail.mit.edu/hubert/pyaudio/)
 
+## Configuration
+- input_device_index should be selected according to the configuration of target system
+
 ## Usage
 
-    python audiostream_tp.py
+    python audiostream.py
 
 This script will run automatically & forever.
 To stop it, use KeyboardInterrupt (CRTL+C).
@@ -40,11 +43,3 @@ To stop it, use KeyboardInterrupt (CRTL+C).
 	E - expected (both A & P)
 2. A hashbar representing the anomaly score
 3. Plot of the frequency domain in real-time   
-
-## Next steps:
-
-1. Benchmark different parameters (especially TP parameters)
-	Use annoying_test and Online Tone Generator http://onlinetonegenerator.com/
-2. Implement anomaly smoothing
-3. Implement spatial pooler
-4. Look into better algorithms to pick out the frequency peaks (sound fingerprinting)
